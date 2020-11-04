@@ -5,6 +5,7 @@
 using System;
 using System.IO;
 using System.Collections;
+using System.Collections.Generic;
 
 using System.Globalization;
 using System.Diagnostics;
@@ -84,6 +85,18 @@ namespace Microsoft.Build.Tasks.Windows
                 RemoveItemsByName(xmlProjectDoc, MARKUPRESOURCENAME);
                 RemoveItemsByName(xmlProjectDoc, RESOURCENAME);
 
+                // Add properties required for temporary assembly compilation
+                var properties = new List<(string PropertyName, string PropertyValue)> 
+                {
+                    ( nameof(AssemblyName), AssemblyName ),
+                    ( nameof(IntermediateOutputPath), IntermediateOutputPath ),
+                    ( "AppendTargetFrameworkToOutputPath", "false"),
+                    ( "_TargetAssemblyProjectName", Path.GetFileNameWithoutExtension(CurrentProject)),
+                    ( nameof(MSBuildProjectExtensionsPath), MSBuildProjectExtensionsPath)
+                };
+
+                AddNewProperties(xmlProjectDoc, properties);
+
                 // Replace the Reference Item list with ReferencePath
                 RemoveItemsByName(xmlProjectDoc, REFERENCETYPENAME);
                 AddNewItems(xmlProjectDoc, ReferencePathTypeName, ReferencePath);
@@ -150,6 +163,49 @@ namespace Microsoft.Build.Tasks.Windows
         [Required]
         public string ReferencePathTypeName
         { get; set; }
+
+        /// <summary>
+        /// IntermediateOutputPath
+        /// 
+        /// The value which is set to IntermediateOutputPath property in current project file.
+        /// 
+        /// Passing this value explicitly is to make sure to generate temporary target assembly 
+        /// in expected directory.  
+        /// </summary>
+        [Required]
+        public string IntermediateOutputPath
+        {
+            get { return _intermediateOutputPath; }
+            set { _intermediateOutputPath = value; }
+        }
+
+        /// <summary>
+        /// AssemblyName
+        /// 
+        /// The value which is set to AssemblyName property in current project file.
+        /// Passing this value explicitly is to make sure to generate the expected 
+        /// temporary target assembly.
+        /// 
+        /// </summary>
+        [Required]
+        public string AssemblyName
+        {
+            get { return _assemblyName; }
+            set { _assemblyName = value; }
+        }
+
+        /// <summary>
+        /// MSBuildProjectExtensionsPath 
+        /// 
+        /// Required for NuGet PackageReferences (*.nuget.g.props/targets, project.assets, etc.)
+        /// 
+        /// </summary>
+        [Required]
+        public string MSBuildProjectExtensionsPath
+        {
+            get { return _msBuildProjectExtensionsPath; }
+            set { _msBuildProjectExtensionsPath = value; }
+        }
 
         [Output]
         public string TemporaryTargetAssemblyProjectName 
@@ -316,6 +372,33 @@ namespace Microsoft.Build.Tasks.Windows
             }
         }
 
+        private void AddNewProperties(XmlDocument xmlProjectDoc, List<(string PropertyName, string PropertyValue)> properties )
+        {
+            if (xmlProjectDoc == null || properties == null )
+            {
+                // When the parameters are not valid, simply return it, instead of throwing exceptions.
+                return;
+            }
+
+            XmlNode root = xmlProjectDoc.DocumentElement;
+
+            // Create a new ItemGroup element
+            XmlNode nodeItemGroup = xmlProjectDoc.CreateElement("PropertyGroup", root.NamespaceURI);
+            root.InsertAfter(nodeItemGroup, root.FirstChild);
+
+            // Append this new ItemGroup item into the list of children of the document root.
+            foreach(var property in properties)
+            {
+                // Create an element for the given propertyName
+                XmlElement nodeItem = xmlProjectDoc.CreateElement(property.PropertyName, root.NamespaceURI);
+                nodeItem.InnerText = property.PropertyValue;
+
+                // Add current item node into the PropertyGroup 
+                nodeItemGroup.AppendChild(nodeItem);
+            }
+
+        }
+
         private const string ALIASES = "Aliases";
         private const string REFERENCETYPENAME = "Reference";
         private const string EMBEDINTEROPTYPES = "EmbedInteropTypes";
@@ -329,5 +412,9 @@ namespace Microsoft.Build.Tasks.Windows
 
         private const string TRUE = "True";
         private const string WPFTMP = "wpftmp";
+
+        private string  _intermediateOutputPath;
+        private string  _assemblyName;
+        private string  _msBuildProjectExtensionsPath;
     }
 }
