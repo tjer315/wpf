@@ -268,7 +268,7 @@ namespace Microsoft.Build.Tasks.Windows
                     //
                     if (nodeGroup.HasChildNodes)
                     {
-                        ArrayList itemToRemove = new ArrayList();
+                        List<XmlElement> itemToRemove = new List<XmlElement>();
 
                         for (int j = 0; j < nodeGroup.ChildNodes.Count; j++)
                         {
@@ -289,18 +289,11 @@ namespace Microsoft.Build.Tasks.Windows
                         //
                         if (itemToRemove.Count > 0)
                         {
-                            foreach (object node in itemToRemove)
+                            foreach (XmlElement item in itemToRemove)
                             {
-                                XmlElement item = node as XmlElement;
-
-                                //
                                 // Remove this item from its parent node.
                                 // the parent node should be nodeGroup.
-                                //
-                                if (item != null)
-                                {
-                                    nodeGroup.RemoveChild(item);
-                                }
+                                nodeGroup.RemoveChild(item);
                             }
                         }
                     }
